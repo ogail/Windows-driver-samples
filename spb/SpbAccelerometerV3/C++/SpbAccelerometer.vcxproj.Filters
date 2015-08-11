@@ -1,0 +1,218 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx;*</Extensions>
+      <UniqueIdentifier>{80B4F161-320D-4671-905A-63B18B459B1A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+      <UniqueIdentifier>{C066A220-B147-4C05-8A5B-A6CF44C0FB5C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms;man;xml</Extensions>
+      <UniqueIdentifier>{B626FA3E-A45D-4957-9EFF-E19E0B0C65A8}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="DllMain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Driver.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Device.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Queue.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SensorDdi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ClientManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ReportManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="AccelerometerDevice.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SpbRequest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Internalsrc.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="AccelerometerDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Adxl345.h" />
+    <ClInclude Include="ClientManager.h" />
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Driver.h" />
+    <ClInclude Include="Internal.h" />
+    <ClInclude Include="Queue.h" />
+    <ClInclude Include="ReportManager.h" />
+    <ClInclude Include="SensorDdi.h" />
+    <ClInclude Include="SpbRequest.h" />
+    <ClInclude Include="Trace.h" />
+    <ClInclude Include="AccelerometerDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Adxl345.h" />
+    <ClInclude Include="ClientManager.h" />
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Driver.h" />
+    <ClInclude Include="Internal.h" />
+    <ClInclude Include="Queue.h" />
+    <ClInclude Include="ReportManager.h" />
+    <ClInclude Include="SensorDdi.h" />
+    <ClInclude Include="SpbRequest.h" />
+    <ClInclude Include="Trace.h" />
+    <ClInclude Include="AccelerometerDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Adxl345.h" />
+    <ClInclude Include="ClientManager.h" />
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Driver.h" />
+    <ClInclude Include="Internal.h" />
+    <ClInclude Include="Queue.h" />
+    <ClInclude Include="ReportManager.h" />
+    <ClInclude Include="SensorDdi.h" />
+    <ClInclude Include="SpbRequest.h" />
+    <ClInclude Include="Trace.h" />
+    <ClInclude Include="AccelerometerDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Adxl345.h" />
+    <ClInclude Include="ClientManager.h" />
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Driver.h" />
+    <ClInclude Include="Internal.h" />
+    <ClInclude Include="Queue.h" />
+    <ClInclude Include="ReportManager.h" />
+    <ClInclude Include="SensorDdi.h" />
+    <ClInclude Include="SpbRequest.h" />
+    <ClInclude Include="Trace.h" />
+    <ClInclude Include="AccelerometerDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Adxl345.h" />
+    <ClInclude Include="ClientManager.h" />
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Driver.h" />
+    <ClInclude Include="Internal.h" />
+    <ClInclude Include="Queue.h" />
+    <ClInclude Include="ReportManager.h" />
+    <ClInclude Include="SensorDdi.h" />
+    <ClInclude Include="SpbRequest.h" />
+    <ClInclude Include="Trace.h" />
+    <ClInclude Include="AccelerometerDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Adxl345.h" />
+    <ClInclude Include="ClientManager.h" />
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Driver.h" />
+    <ClInclude Include="Internal.h" />
+    <ClInclude Include="Queue.h" />
+    <ClInclude Include="ReportManager.h" />
+    <ClInclude Include="SensorDdi.h" />
+    <ClInclude Include="SpbRequest.h" />
+    <ClInclude Include="Trace.h" />
+    <ClInclude Include="AccelerometerDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Adxl345.h" />
+    <ClInclude Include="ClientManager.h" />
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Driver.h" />
+    <ClInclude Include="Internal.h" />
+    <ClInclude Include="Queue.h" />
+    <ClInclude Include="ReportManager.h" />
+    <ClInclude Include="SensorDdi.h" />
+    <ClInclude Include="SpbRequest.h" />
+    <ClInclude Include="Trace.h" />
+    <ClInclude Include="AccelerometerDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Adxl345.h" />
+    <ClInclude Include="ClientManager.h" />
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Driver.h" />
+    <ClInclude Include="Internal.h" />
+    <ClInclude Include="Queue.h" />
+    <ClInclude Include="ReportManager.h" />
+    <ClInclude Include="SensorDdi.h" />
+    <ClInclude Include="SpbRequest.h" />
+    <ClInclude Include="Trace.h" />
+    <ClInclude Include="AccelerometerDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Adxl345.h" />
+    <ClInclude Include="ClientManager.h" />
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Driver.h" />
+    <ClInclude Include="Internal.h" />
+    <ClInclude Include="Queue.h" />
+    <ClInclude Include="ReportManager.h" />
+    <ClInclude Include="SensorDdi.h" />
+    <ClInclude Include="SpbRequest.h" />
+    <ClInclude Include="Trace.h" />
+    <ClInclude Include="AccelerometerDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Adxl345.h" />
+    <ClInclude Include="ClientManager.h" />
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Driver.h" />
+    <ClInclude Include="Internal.h" />
+    <ClInclude Include="Queue.h" />
+    <ClInclude Include="ReportManager.h" />
+    <ClInclude Include="SensorDdi.h" />
+    <ClInclude Include="SpbRequest.h" />
+    <ClInclude Include="Trace.h" />
+    <ClInclude Include="AccelerometerDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Adxl345.h" />
+    <ClInclude Include="ClientManager.h" />
+    <ClInclude Include="Device.h" />
+    <ClInclude Include="Driver.h" />
+    <ClInclude Include="Internal.h" />
+    <ClInclude Include="Queue.h" />
+    <ClInclude Include="ReportManager.h" />
+    <ClInclude Include="SensorDdi.h" />
+    <ClInclude Include="SpbRequest.h" />
+    <ClInclude Include="Trace.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="SpbAccelerometer.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Inf Include="SpbAccelerometer.inx" />
+  </ItemGroup>
+  <ItemGroup>
+    <Midl Include="Request.idl">
+      <Filter>Source Files</Filter>
+    </Midl>
+    <Midl Include="SensorDevice.idl">
+      <Filter>Source Files</Filter>
+    </Midl>
+    <Midl Include="SpbAccelerometer.idl">
+      <Filter>Source Files</Filter>
+    </Midl>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="*.def;*.bat;*.hpj;*.asmx">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
+</Project>
