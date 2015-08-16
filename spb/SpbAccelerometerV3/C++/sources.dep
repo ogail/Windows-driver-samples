@@ -1,0 +1,14 @@
+PUBLIC_PASS0_CONSUMES= \
+    base\published2|PASS0 \
+    com\published\idlole\publish|PASS0 \
+    drivers\wdf\umdf\common\inc\1.11|PASS0 \
+    drivers\wdf\umdf\driverhost\common\inc\public|PASS0 \
+    enduser\mssearch2\search\search\structuredquery\interfaces\publish|PASS0 \
+    enduser\sql\xml\msxml3\idl|PASS0 \
+    enduser\sql\xml\msxml3\publish|PASS0 \
+    inetcore\published\sdk\inc|PASS0 \
+    minkernel\ntos\inc|PASS0 \
+    minkernel\published\base|PASS0 \
+    multimedia\wpd\common\inc|PASS0 \
+    shell\published\inc\inc0|PASS0 \
+

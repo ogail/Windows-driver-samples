@@ -1,0 +1,88 @@
+﻿TARGETNAME=SpbAccelerometer
+TARGETTYPE=DYNLINK
+
+INF_NAME=$(TARGETNAME)
+
+UMDF_VERSION_MAJOR=1
+
+USE_STL       = 1
+STL_VER       = 110
+
+
+#We're using precompiled headers
+PRECOMPILED_CXX     = 1
+PRECOMPILED_INCLUDE = Internal.h
+
+C_DEFINES = $(C_DEFINES)  /D_UNICODE /DUNICODE
+
+MSC_WARNING_LEVEL = /W4 /WX
+
+DLLENTRY=_DllMainCRTStartup
+DLLDEF=SpbAccelerometer.def
+USE_MSVCRT    = 1
+USE_NATIVE_EH=ASYNC
+# @@BEGIN_DDKSPLIT 
+USE_PUBLIC_SDK = 1
+# @@END_DDKSPLIT
+
+#
+# Indicate to the WDK that this sample only supports Win8+
+#
+MINIMUM_NT_TARGET_VERSION=$(_NT_TARGET_VERSION_WIN8)
+MAXIMUM_NT_TARGET_VERSION=$(_NT_TARGET_VERSION_WINBLUE)
+
+#ABRACADaBRA_THRESHOLD - this needs fixing to target latest
+_NT_TARGET_VERSION=$(_NT_TARGET_VERSION_WINBLUE)
+
+INCLUDES=$(INCLUDES); \
+         $(DDK_INC_PATH); \
+         $(DDK_INC_PATH)\wdm; \
+         $(SPB_INC_PATH)\$(SPB_VERSION_MAJOR).$(SPB_VERSION_MINOR); \
+         
+
+SOURCES=DllMain.cpp \
+        Driver.cpp \
+        Device.cpp \
+        Queue.cpp \
+        SensorDdi.cpp \
+        ClientManager.cpp \
+        ReportManager.cpp \
+        AccelerometerDevice.cpp \
+        SensorDevice.cpp \
+        SpbRequest.cpp \
+        SpbAccelerometer.rc \
+        SpbAccelerometer.idl \
+
+TARGETLIBS=$(SDK_LIB_PATH)\strsafe.lib \
+           $(SDK_LIB_PATH)\kernel32.lib \
+           $(SDK_LIB_PATH)\ole32.lib \
+           $(SDK_LIB_PATH)\oleaut32.lib \
+           $(SDK_LIB_PATH)\uuid.lib \
+           $(SDK_LIB_PATH)\user32.lib \
+           $(SDK_LIB_PATH)\advapi32.lib \
+           $(SDK_LIB_PATH)\shlwapi.lib \
+           $(SDK_LIB_PATH)\propsys.lib     \
+           $(SDK_LIB_PATH)\RuntimeObject.lib \
+           $(SDK_LIB_PATH)\PortableDeviceGuids.lib \
+           $(DDK_LIB_PATH)\SensorsClassExtension.lib \
+
+TARGET_DESTINATION=SPB\peripherals
+
+NTTARGETFILE0=$(OBJ_PATH)\$(O)\$(INF_NAME).inf
+# @@BEGIN_DDKSPLIT
+PASS0_BINPLACE=$(NTTARGETFILE0)
+# @@END_DDKSPLIT
+
+#
+# This sets up the WPP preprocessor and tells it to scan Trace.h to find
+# the trace function definition that's in there.
+#
+
+RUN_WPP=$(SOURCES) \
+        -dll \
+        -scan:Trace.h
+
+
+
+
+MUI_VERIFY_NO_LOC_RESOURCE=1 

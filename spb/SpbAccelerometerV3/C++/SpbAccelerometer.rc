@@ -13,7 +13,7 @@
 #define VER_FILESUBTYPE             VFT_UNKNOWN
 #define VER_FILEDESCRIPTION_STR     "SPB Accelerometer Driver Sample"
 #define VER_INTERNALNAME_STR        "SpbAccelerometerDriver"
-#define VER_ORIGINALFILENAME_STR    "SpbAccelerometer.dll"
+#define VER_ORIGINALFILENAME_STR    "SpbAccelerometerV3.dll"
 
 #include "common.ver"
 

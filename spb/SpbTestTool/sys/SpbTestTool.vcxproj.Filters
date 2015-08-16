@@ -19,15 +19,21 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="device.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="driver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="peripheral.cpp">
+    <ClCompile Include="device.cpp" />
+    <ClCompile Include="peripheral.cpp" />
+    <ClCompile Include="driver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="device.cpp" />
+    <ClCompile Include="peripheral.cpp" />
+    <ClCompile Include="driver.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="device.cpp" />
+    <ClCompile Include="peripheral.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Inf Include=".\SpbTestTool.inx">
@@ -38,5 +44,55 @@
     <ResourceCompile Include="resource.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="device.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="driver.h" />
+    <ClInclude Include="internal.h" />
+    <ClInclude Include="peripheral.h" />
+    <ClInclude Include="spbtestioctl.h" />
+    <ClInclude Include="trace.h" />
+    <ClInclude Include="device.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="driver.h" />
+    <ClInclude Include="internal.h" />
+    <ClInclude Include="peripheral.h" />
+    <ClInclude Include="spbtestioctl.h" />
+    <ClInclude Include="trace.h" />
+    <ClInclude Include="device.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="driver.h" />
+    <ClInclude Include="internal.h" />
+    <ClInclude Include="peripheral.h" />
+    <ClInclude Include="spbtestioctl.h" />
+    <ClInclude Include="trace.h" />
+    <ClInclude Include="device.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="driver.h" />
+    <ClInclude Include="internal.h" />
+    <ClInclude Include="peripheral.h" />
+    <ClInclude Include="spbtestioctl.h" />
+    <ClInclude Include="trace.h" />
+    <ClInclude Include="device.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="driver.h" />
+    <ClInclude Include="internal.h" />
+    <ClInclude Include="peripheral.h" />
+    <ClInclude Include="spbtestioctl.h" />
+    <ClInclude Include="trace.h" />
+    <ClInclude Include="device.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="driver.h" />
+    <ClInclude Include="internal.h" />
+    <ClInclude Include="peripheral.h" />
+    <ClInclude Include="spbtestioctl.h" />
+    <ClInclude Include="trace.h" />
   </ItemGroup>
 </Project>

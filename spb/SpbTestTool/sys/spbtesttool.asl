@@ -18,8 +18,9 @@ Device(SPBT)
             // Note: SpbTestTool does not require a GPIO resource.
             // Remove as necessary.
             //
-            I2CSerialBus(0x1D, ControllerInitiated, 400000, AddressingMode7Bit, "\\_SB.I2C", , )
-            GpioInt(Level, ActiveHigh, Exclusive, PullDown, 0, "\\_SB.GPIO") {1}
+            I2CSerialBus(0x48, ControllerInitiated, 400000, AddressingMode7Bit, "\\_SB.I2C", , )
+            I2CSerialBus(0x27, ControllerInitiated, 400000, AddressingMode7Bit, "\\_SB.I2C", , )
+            //GpioInt(Level, ActiveHigh, Exclusive, PullDown, 0, "\\_SB.GPIO") {1}
         })
         Return(RBUF)
     }

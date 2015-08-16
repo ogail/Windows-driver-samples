@@ -16,12 +16,22 @@ Abstract:
     This module contains the implementation of the SPB accelerometer's
     accelerometer device class.
 
+    This class supports methods to:
+    * Initialize the sensor object from ACPI configuration.
+    * Configure the hardware buffers and registers.
+    * Connect the data notification interrupt.
+    * Set the report interval and change sensitivity properties.
+    * Set the device operation mode (eventing, standby, etc.).
+    * Write data to the device's registers.
+
 --*/
 
 
 #include "Internal.h"
 #include "Adxl345.h"
 #include "Device.h"
+#include "SpbRequest.h"
+#include "SensorDevice.h"
 
 #include <float.h>
 #include "strsafe.h"
@@ -29,40 +39,107 @@ Abstract:
 #include "AccelerometerDevice.h"
 #include "AccelerometerDevice.tmh"
 
+using namespace Microsoft::WRL;
+using namespace Microsoft::WRL::Wrappers;
+
 // Array of settings that describe the initial
 // device configuration.
 const REGISTER_SETTING g_ConfigurationSettings[] =
 {
     // Standby mode
-    {ADXL345_POWER_CTL, 
-        ADXL345_POWER_CTL_STANDBY},
+    { ADXL345_POWER_CTL,
+        ADXL345_POWER_CTL_STANDBY },
     // +-16g, 13-bit resolution
-    {ADXL345_DATA_FORMAT, 
+    { ADXL345_DATA_FORMAT,
         ADXL345_DATA_FORMAT_FULL_RES |
         ADXL345_DATA_FORMAT_JUSTIFY_RIGHT |
-        ADXL345_DATA_FORMAT_RANGE_16G},
+        ADXL345_DATA_FORMAT_RANGE_16G },
     // No FIFO
-    {ADXL345_FIFO_CTL, 
-        ADXL345_FIFO_CTL_MODE_BYPASS},
+    { ADXL345_FIFO_CTL,
+        ADXL345_FIFO_CTL_MODE_BYPASS },
     // Data rate set to default
-    {ADXL345_BW_RATE, 
-        _GetDataRateFromReportInterval(DEFAULT_ACCELEROMETER_CURRENT_REPORT_INTERVAL).RateCode},
+    { ADXL345_BW_RATE,
+        _GetDataRateFromReportInterval(DEFAULT_ACCELEROMETER_CURRENT_REPORT_INTERVAL).RateCode },
     // Activity threshold set to
     // default change sensitivity
-    {ADXL345_THRESH_ACT, 
-        (BYTE)(DEFAULT_ACCELEROMETER_CHANGE_SENSITIVITY / 
-        ACCELEROMETER_CHANGE_SENSITIVITY_RESOLUTION)},
+    { ADXL345_THRESH_ACT,
+        (BYTE)(DEFAULT_ACCELEROMETER_CHANGE_SENSITIVITY / ACCELEROMETER_CHANGE_SENSITIVITY_RESOLUTION) },
     // Activity detection enabled, AC coupled
-    {ADXL345_ACT_INACT_CTL, 
+    { ADXL345_ACT_INACT_CTL,
         ADXL345_ACT_INACT_CTL_ACT_ACDC |
         ADXL345_ACT_INACT_CTL_ACT_X |
         ADXL345_ACT_INACT_CTL_ACT_Y |
-        ADXL345_ACT_INACT_CTL_ACT_Z},
+        ADXL345_ACT_INACT_CTL_ACT_Z },
     // Activity interrupt mapped to pin 1
-    {ADXL345_INT_MAP, 
-        ADXL345_INT_ACTIVITY},
+    { ADXL345_INT_MAP,
+        ADXL345_INT_ACTIVITY },
 };
 
+//
+// Supported accelerometer properties, data fields,
+// and events
+//
+
+const PROPERTYKEY g_SupportedAccelerometerProperties[] =
+{
+    WPD_OBJECT_ID,
+    SENSOR_PROPERTY_TYPE,
+    SENSOR_PROPERTY_PERSISTENT_UNIQUE_ID,
+    SENSOR_PROPERTY_MANUFACTURER,
+    SENSOR_PROPERTY_MODEL,
+    SENSOR_PROPERTY_SERIAL_NUMBER,
+    SENSOR_PROPERTY_FRIENDLY_NAME,
+    SENSOR_PROPERTY_DESCRIPTION,
+    SENSOR_PROPERTY_CONNECTION_TYPE,
+    SENSOR_PROPERTY_RANGE_MINIMUM,
+    SENSOR_PROPERTY_RANGE_MAXIMUM,
+    SENSOR_PROPERTY_RESOLUTION,
+    SENSOR_PROPERTY_STATE,
+    SENSOR_PROPERTY_MIN_REPORT_INTERVAL,
+    WPD_FUNCTIONAL_OBJECT_CATEGORY,
+};
+
+const PROPERTYKEY g_SupportedPerDataFieldProperties[] =
+{
+    SENSOR_PROPERTY_RANGE_MINIMUM,
+    SENSOR_PROPERTY_RANGE_MAXIMUM,
+    SENSOR_PROPERTY_RESOLUTION,
+};
+
+const PROPERTYKEY g_SupportedAccelerometerDataFields[] =
+{
+    SENSOR_DATA_TYPE_TIMESTAMP,
+    SENSOR_DATA_TYPE_ACCELERATION_X_G,
+    SENSOR_DATA_TYPE_ACCELERATION_Y_G,
+    SENSOR_DATA_TYPE_ACCELERATION_Z_G,
+};
+
+const PROPERTYKEY g_SupportedAccelerometerEvents[] =
+{
+    SENSOR_EVENT_DATA_UPDATED, 0,
+    SENSOR_EVENT_STATE_CHANGED, 0,
+};
+
+const PROPERTYKEY* CAccelerometerDevice::GetSupportedProperties(_Out_ ULONG* Count)
+{
+    *Count = ARRAYSIZE(g_SupportedAccelerometerProperties);
+    return g_SupportedAccelerometerProperties;
+}
+const PROPERTYKEY* CAccelerometerDevice::GetSupportedPerDataFieldProperties(_Out_ ULONG* Count)
+{
+    *Count = ARRAYSIZE(g_SupportedPerDataFieldProperties);
+    return g_SupportedPerDataFieldProperties;
+}
+const PROPERTYKEY* CAccelerometerDevice::GetSupportedDataFields(_Out_ ULONG* Count)
+{
+    *Count = ARRAYSIZE(g_SupportedAccelerometerDataFields);
+    return g_SupportedAccelerometerDataFields;
+}
+const PROPERTYKEY* CAccelerometerDevice::GetSupportedEvents(_Out_ ULONG* Count)
+{
+    *Count = ARRAYSIZE(g_SupportedAccelerometerEvents);
+    return g_SupportedAccelerometerEvents;
+}
 
 /////////////////////////////////////////////////////////////////////////
 //
@@ -72,14 +149,10 @@ const REGISTER_SETTING g_ConfigurationSettings[] =
 //
 /////////////////////////////////////////////////////////////////////////
 CAccelerometerDevice::CAccelerometerDevice() :
-    m_pSensorDeviceCallback(nullptr),
-    m_spRequest(nullptr),
     m_pSpbRequest(nullptr),
     m_pDataBuffer(nullptr),
     m_fInitialized(FALSE),
-    m_InterruptsEnabled(0),
-    m_TestRegister(0),
-    m_TestDataSize(0)
+    m_InterruptsEnabled(0)
 {
 
 }
@@ -97,8 +170,6 @@ CAccelerometerDevice::~CAccelerometerDevice()
     // if it isn't already
     SetDeviceStateStandby();
 
-    SAFE_RELEASE(m_pSpbRequest);
-
     if (m_pDataBuffer != nullptr)
     {
         delete[] m_pDataBuffer;
@@ -108,27 +179,24 @@ CAccelerometerDevice::~CAccelerometerDevice()
 
 /////////////////////////////////////////////////////////////////////////
 //
-//  CAccelerometerDevice::Initialize
+//  CAccelerometerDevice::InitializeDevice
 //
 //  This method is used to initialize the accelerometer device object
 //  and its child objects.
 //
 //  Parameters:
-//      pDevice - pointer to a device object
-//      pWdfResourcesRaw - pointer the raw resource list
+//      pWdfDevice - pointer to a device object
+//      pWdfResourcesRaw - pointer to the raw resource list
 //      pWdfResourcesTranslated - pointer to the translated resource list
-//      pSensorDeviceCallback - pointer to the sensor device callback
-//          interface
 //
 //  Return Values:
 //      status
 //
 /////////////////////////////////////////////////////////////////////////
-HRESULT CAccelerometerDevice::Initialize(
+HRESULT CAccelerometerDevice::InitializeDevice(
     _In_ IWDFDevice* pWdfDevice,
     _In_ IWDFCmResourceList* pWdfResourcesRaw,
-    _In_ IWDFCmResourceList* pWdfResourcesTranslated,
-    _In_ ISensorDeviceCallback* pSensorDeviceCallback
+    _In_ IWDFCmResourceList* pWdfResourcesTranslated
     )
 {
     FuncEntry();
@@ -140,23 +208,9 @@ HRESULT CAccelerometerDevice::Initialize(
 
     if (m_fInitialized == FALSE)
     {
-        if ((pWdfDevice == nullptr) ||
-            (pSensorDeviceCallback == nullptr))
-        {
-            hr = E_INVALIDARG;
-        }
-        else
-        {
-            // Save weak reference to callback
-            m_pSensorDeviceCallback = pSensorDeviceCallback;
-        }
-
-        if (SUCCEEDED(hr))
-        {
-            // Get the device configuration settings
-            // from ACPI.
-            hr = GetConfigurationData(pWdfDevice);
-        }
+        // Get the device configuration settings
+        // from ACPI.
+        hr = GetConfigurationData(pWdfDevice);
 
         if (SUCCEEDED(hr))
         {
@@ -182,7 +236,347 @@ HRESULT CAccelerometerDevice::Initialize(
         }
     }
 
-    FuncExit();
+    //FuncExit();
+
+    return hr;
+}
+
+/////////////////////////////////////////////////////////////////////////
+//
+//  CAccelerometerDevice::GetSensorObjectID
+//
+//  This method returns the sensor's object ID.
+//  
+//  Parameters:
+//
+//  Return Value:
+//      Object ID 
+//
+/////////////////////////////////////////////////////////////////////////
+LPWSTR CAccelerometerDevice::GetSensorObjectID()
+{
+    return (LPWSTR)SENSOR_ACCELEROMETER_ID;
+}
+
+/////////////////////////////////////////////////////////////////////////
+//
+//  CAccelerometerDevice::GetDefaultSettableProperties
+//
+//  This methods returns the default report interval and change
+// sensitivity values.
+//
+//  Parameters:
+//      pReportInterval - pointer to the default report interval
+//      ppChangeSensitivities - pointer the default change sensitivity values
+//
+//  Return Value:
+//      status
+//
+/////////////////////////////////////////////////////////////////////////
+HRESULT CAccelerometerDevice::GetDefaultSettableProperties(
+    _Out_ ULONG* pReportInterval,
+    _Out_ IPortableDeviceValues** ppChangeSensitivities
+    )
+{
+    *pReportInterval = DEFAULT_ACCELEROMETER_CURRENT_REPORT_INTERVAL;
+
+    HRESULT hr = CoCreateInstance(
+        CLSID_PortableDeviceValues,
+        nullptr,
+        CLSCTX_INPROC_SERVER,
+        IID_PPV_ARGS(ppChangeSensitivities));
+
+    if (SUCCEEDED(hr))
+    {
+        PROPVARIANT var;
+        PropVariantInit(&var);
+        var.vt = VT_R8;
+        var.dblVal = DEFAULT_ACCELEROMETER_CHANGE_SENSITIVITY;
+
+        hr = (*ppChangeSensitivities)->SetValue(SENSOR_DATA_TYPE_ACCELERATION_X_G, &var);
+
+        if (SUCCEEDED(hr))
+        {
+            hr = (*ppChangeSensitivities)->SetValue(SENSOR_DATA_TYPE_ACCELERATION_Y_G, &var);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = (*ppChangeSensitivities)->SetValue(SENSOR_DATA_TYPE_ACCELERATION_Z_G, &var);
+        }
+
+        PropVariantClear(&var);
+    }
+
+    return hr;
+}
+
+
+/////////////////////////////////////////////////////////////////////////
+//
+//  CAccelerometerDevice::SetDefaultPropertyValues
+//
+//  This methods sets the property values to their defaults.
+//
+//  Parameters: 
+//
+//  Return Value:
+//      status
+//
+/////////////////////////////////////////////////////////////////////////
+HRESULT CAccelerometerDevice::SetDefaultPropertyValues()
+{
+    FuncEntry();
+
+    // Synchronize access to the property cache
+    auto scopeLock = m_CacheCriticalSection.Lock();
+
+    HRESULT hr = S_OK;
+
+    if (m_spSensorPropertyValues == nullptr)
+    {
+        hr = E_POINTER;
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        hr = m_spSensorPropertyValues->SetStringValue(
+            WPD_OBJECT_ID,
+            (LPCWSTR)SENSOR_ACCELEROMETER_ID);
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSensorPropertyValues->SetGuidValue(
+                WPD_FUNCTIONAL_OBJECT_CATEGORY,
+                SENSOR_CATEGORY_MOTION);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSensorPropertyValues->SetGuidValue(
+                SENSOR_PROPERTY_TYPE,
+                SENSOR_TYPE_ACCELEROMETER_3D);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSensorPropertyValues->SetStringValue(
+                SENSOR_PROPERTY_MANUFACTURER,
+                (LPCWSTR)SENSOR_ACCELEROMETER_MANUFACTURER);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSensorPropertyValues->SetStringValue(
+                SENSOR_PROPERTY_MODEL,
+                (LPCWSTR)SENSOR_ACCELEROMETER_MODEL);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSensorPropertyValues->SetStringValue(
+                SENSOR_PROPERTY_SERIAL_NUMBER,
+                (LPCWSTR)SENSOR_ACCELEROMETER_SERIAL_NUMBER);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSensorPropertyValues->SetStringValue(
+                SENSOR_PROPERTY_FRIENDLY_NAME,
+                (LPCWSTR)SENSOR_ACCELEROMETER_NAME);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSensorPropertyValues->SetStringValue(
+                SENSOR_PROPERTY_DESCRIPTION,
+                (LPCWSTR)SENSOR_ACCELEROMETER_DESCRIPTION);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSensorPropertyValues->SetUnsignedIntegerValue(
+                SENSOR_PROPERTY_CONNECTION_TYPE,
+                SENSOR_CONNECTION_TYPE_PC_INTEGRATED);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSensorPropertyValues->SetUnsignedIntegerValue(
+                SENSOR_PROPERTY_STATE, SENSOR_STATE_NO_DATA);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSensorPropertyValues->SetUnsignedIntegerValue(
+                SENSOR_PROPERTY_MIN_REPORT_INTERVAL,
+                ACCELEROMETER_MIN_REPORT_INTERVAL);
+        }
+
+        // The following properties are per data field
+
+        if (SUCCEEDED(hr))
+        {
+            // Create an IPortableDeviceValues to
+            // store the per data field minimum
+            // range values
+            ComPtr<IPortableDeviceValues> spRangeMinValues;
+            hr = CoCreateInstance(
+                CLSID_PortableDeviceValues,
+                nullptr,
+                CLSCTX_INPROC_SERVER,
+                IID_PPV_ARGS(&spRangeMinValues));
+
+            if (SUCCEEDED(hr))
+            {
+                PROPVARIANT var;
+                PropVariantInit(&var);
+
+                var.vt = VT_R8;
+                var.dblVal = ACCELEROMETER_MIN_ACCELERATION_G;
+
+                hr = spRangeMinValues->SetValue(
+                    SENSOR_DATA_TYPE_ACCELERATION_X_G,
+                    &var);
+
+                if (SUCCEEDED(hr))
+                {
+                    hr = spRangeMinValues->SetValue(
+                        SENSOR_DATA_TYPE_ACCELERATION_Y_G,
+                        &var);
+                }
+
+                if (SUCCEEDED(hr))
+                {
+                    hr = spRangeMinValues->SetValue(
+                        SENSOR_DATA_TYPE_ACCELERATION_Z_G,
+                        &var);
+                }
+
+                if (SUCCEEDED(hr))
+                {
+                    // Add to the property cache
+                    hr = m_spSensorPropertyValues->
+                        SetIPortableDeviceValuesValue(
+                        SENSOR_PROPERTY_RANGE_MINIMUM,
+                        spRangeMinValues.Get());
+                }
+
+                PropVariantClear(&var);
+            }
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            // Create an IPortableDeviceValues to
+            // store the per data field maximum
+            // range values
+            ComPtr<IPortableDeviceValues> spRangeMaxValues;
+            hr = CoCreateInstance(
+                CLSID_PortableDeviceValues,
+                nullptr,
+                CLSCTX_INPROC_SERVER,
+                IID_PPV_ARGS(&spRangeMaxValues));
+
+            if (SUCCEEDED(hr))
+            {
+                PROPVARIANT var;
+                PropVariantInit(&var);
+
+                var.vt = VT_R8;
+                var.dblVal = ACCELEROMETER_MAX_ACCELERATION_G;
+
+                hr = spRangeMaxValues->SetValue(
+                    SENSOR_DATA_TYPE_ACCELERATION_X_G,
+                    &var);
+
+                if (SUCCEEDED(hr))
+                {
+                    hr = spRangeMaxValues->SetValue(
+                        SENSOR_DATA_TYPE_ACCELERATION_Y_G,
+                        &var);
+                }
+
+                if (SUCCEEDED(hr))
+                {
+                    hr = spRangeMaxValues->SetValue(
+                        SENSOR_DATA_TYPE_ACCELERATION_Z_G,
+                        &var);
+                }
+
+                if (SUCCEEDED(hr))
+                {
+                    // Add to the property cache
+                    hr = m_spSensorPropertyValues->
+                        SetIPortableDeviceValuesValue(
+                        SENSOR_PROPERTY_RANGE_MAXIMUM,
+                        spRangeMaxValues.Get());
+                }
+
+                PropVariantClear(&var);
+            }
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            // Create an IPortableDeviceValues to
+            // store the per data field resolution values
+            ComPtr<IPortableDeviceValues> spResolutionValues;
+            hr = CoCreateInstance(
+                CLSID_PortableDeviceValues,
+                nullptr,
+                CLSCTX_INPROC_SERVER,
+                IID_PPV_ARGS(&spResolutionValues));
+
+            if (SUCCEEDED(hr))
+            {
+                PROPVARIANT var;
+                PropVariantInit(&var);
+
+                var.vt = VT_R8;
+                var.dblVal = ACCELEROMETER_RESOLUTION_ACCELERATION_G;
+
+                hr = spResolutionValues->SetValue(
+                    SENSOR_DATA_TYPE_ACCELERATION_X_G,
+                    &var);
+
+                if (SUCCEEDED(hr))
+                {
+                    hr = spResolutionValues->SetValue(
+                        SENSOR_DATA_TYPE_ACCELERATION_Y_G,
+                        &var);
+                }
+
+                if (SUCCEEDED(hr))
+                {
+                    hr = spResolutionValues->SetValue(
+                        SENSOR_DATA_TYPE_ACCELERATION_Z_G,
+                        &var);
+                }
+
+                if (SUCCEEDED(hr))
+                {
+                    // Add to the property caches
+                    hr = m_spSensorPropertyValues->
+                        SetIPortableDeviceValuesValue(
+                        SENSOR_PROPERTY_RESOLUTION,
+                        spResolutionValues.Get());
+                }
+
+                PropVariantClear(&var);
+            }
+        }
+
+        if (FAILED(hr))
+        {
+            Trace(
+                TRACE_LEVEL_ERROR,
+                "Failure while setting defualt property keys, %!HRESULT!,",
+                hr);
+        }
+    }
+
+    //FuncExit();
 
     return hr;
 }
@@ -206,13 +600,13 @@ HRESULT CAccelerometerDevice::GetConfigurationData(
 {
     FuncEntry();
 
-    CComPtr<IWDFIoRequest> spRequest = nullptr;
-    CComPtr<IWDFMemory> spInputMemory = nullptr;
-    CComPtr<IWDFMemory> spOutputMemory = nullptr;
-    CComPtr<IWDFDriver> spDriver;
-    CComPtr<IWDFIoTarget> spLocalTarget;
-    CComPtr<IWDFDriverCreatedFile> spFile = nullptr;
-    CComPtr<IWDFRequestCompletionParams> spCompletionParams;
+    ComPtr<IWDFIoRequest> spRequest = nullptr;
+    ComPtr<IWDFMemory> spInputMemory = nullptr;
+    ComPtr<IWDFMemory> spOutputMemory = nullptr;
+    ComPtr<IWDFDriver> spDriver;
+    ComPtr<IWDFIoTarget> spLocalTarget;
+    ComPtr<IWDFDriverCreatedFile> spFile = nullptr;
+    ComPtr<IWDFRequestCompletionParams> spCompletionParams;
 
     PACPI_EVAL_INPUT_BUFFER_COMPLEX pInputBuffer;
     PACPI_EVAL_OUTPUT_BUFFER pOutputBuffer;
@@ -240,7 +634,7 @@ HRESULT CAccelerometerDevice::GetConfigurationData(
 
     inputBufferSize = sizeof(ACPI_EVAL_INPUT_BUFFER_COMPLEX) +
         (sizeof(ACPI_METHOD_ARGUMENT) * 
-            (ACPI_DSM_ARUGMENTS_COUNT - 1)) +
+            (ACPI_DSM_ARGUMENTS_COUNT - 1)) +
         sizeof(GUID);
 
     hr = spDriver->CreateWdfMemory(
@@ -254,7 +648,7 @@ HRESULT CAccelerometerDevice::GetConfigurationData(
         Trace(
             TRACE_LEVEL_ERROR,
             "Failed to create input memory for IWDFDriver %p - %!HRESULT!",
-            spDriver,
+            spDriver.Get(),
             hr);
         goto exit;
     }
@@ -273,7 +667,7 @@ HRESULT CAccelerometerDevice::GetConfigurationData(
         Trace(
             TRACE_LEVEL_ERROR,
             "Failed to create output memory for IWDFDriver %p - %!HRESULT!",
-            spDriver,
+            spDriver.Get(),
             hr);
         goto exit;
     }
@@ -332,12 +726,12 @@ HRESULT CAccelerometerDevice::GetConfigurationData(
     }
     
     hr = spLocalTarget->FormatRequestForIoctl(
-        spRequest,
+        spRequest.Get(),
         IOCTL_ACPI_EVAL_METHOD,
-        spFile,
-        spInputMemory,
+        spFile.Get(),
+        spInputMemory.Get(),
         nullptr,
-        spOutputMemory,
+        spOutputMemory.Get(),
         nullptr);
 
     if (FAILED(hr))
@@ -345,14 +739,14 @@ HRESULT CAccelerometerDevice::GetConfigurationData(
         Trace(
             TRACE_LEVEL_ERROR,
             "Failed to format target %p for request %p - %!HRESULT!",
-            spLocalTarget,
-            spRequest,
+            spLocalTarget.Get(),
+            spRequest.Get(),
             hr);
         goto exit;
     }
 
     hr = spRequest->Send(
-        spLocalTarget,
+        spLocalTarget.Get(),
         (WDF_REQUEST_SEND_OPTION_SYNCHRONOUS | WDF_REQUEST_SEND_OPTION_TIMEOUT),
         ACPI_DSM_REQUEST_TIMEOUT);
 
@@ -361,7 +755,7 @@ HRESULT CAccelerometerDevice::GetConfigurationData(
         Trace(
             TRACE_LEVEL_ERROR,
             "Failed to send request %p - %!HRESULT!",
-            spRequest,
+            spRequest.Get(),
             hr);
         goto exit;
     }
@@ -431,7 +825,7 @@ exit:
         spRequest->DeleteWdfObject();
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -497,7 +891,7 @@ VOID CAccelerometerDevice::PrepareInputParametersForDsm(
     pArg->DataLength = sizeof(ULONG);
     pArg->Argument = 0;
 
-    FuncExit();
+    //FuncExit();
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -587,7 +981,7 @@ HRESULT CAccelerometerDevice::ParseAcpiOutputBuffer(
 
 exit:
     
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -733,7 +1127,7 @@ HRESULT CAccelerometerDevice::ParseResources(
         }
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -769,34 +1163,16 @@ HRESULT CAccelerometerDevice::InitializeRequest(
     if (SUCCEEDED(hr))
     {
         // Create the request object
-        hr = CComObject<CSpbRequest>::CreateInstance(
-            &m_pSpbRequest);
-        
-        if (SUCCEEDED(hr))
-        {
-            m_pSpbRequest->AddRef();
+        m_pSpbRequest = Make<CSpbRequest>();
 
-            hr = m_pSpbRequest->QueryInterface(
-                IID_PPV_ARGS(&m_spRequest));
-        }
-
-        // TODO: CoCreateInstance rather than calling
-        //       CreateInstance on the class and querying
-        //       the required interface.
-
-        //// Create the request object
-        //hr = CoCreateInstance(
-        //    __uuidof(SpbRequest), // CLSID_SpbRequest
-        //    nullptr,
-        //    CLSCTX_INPROC_SERVER,
-        //    IID_PPV_ARGS(&m_spRequest));
-
-        if (FAILED(hr))
+        if (nullptr == m_pSpbRequest)
         {
             Trace(
                 TRACE_LEVEL_ERROR,
                 "Failed to create the request object, %!HRESULT!", 
                 hr);
+
+            hr = E_OUTOFMEMORY;
         }
         
         if (SUCCEEDED(hr))
@@ -818,7 +1194,7 @@ HRESULT CAccelerometerDevice::InitializeRequest(
             // Initialize the request object
             if (SUCCEEDED(hr))
             {
-                hr = m_spRequest->Initialize(
+                hr = m_pSpbRequest->Initialize(
                     pWdfDevice,
                     DevicePathBuffer);
             }
@@ -836,7 +1212,7 @@ HRESULT CAccelerometerDevice::InitializeRequest(
         }
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -864,8 +1240,8 @@ HRESULT CAccelerometerDevice::ConnectInterrupt(
 {
     FuncEntry();
     
-    CComPtr<IWDFDevice3> pIWDFDevice3;
-    CComPtr<IWDFInterrupt> spInterrupt;
+    ComPtr<IWDFDevice3> pIWDFDevice3;
+    ComPtr<IWDFInterrupt> spInterrupt;
     HRESULT hr = S_OK;
 
     if (pWdfDevice == nullptr)
@@ -914,7 +1290,7 @@ HRESULT CAccelerometerDevice::ConnectInterrupt(
         }
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -952,7 +1328,7 @@ HRESULT CAccelerometerDevice::ConfigureHardware()
 
         {
             // Synchronize access to device
-            CComCritSecLock<CComAutoCriticalSection> scopeLock(m_CriticalSection);
+            auto scopeLock = m_CriticalSection.Lock();
 
             // Loop through configuration values and set registers
             for (DWORD i = 0; i < ARRAY_SIZE(g_ConfigurationSettings); i++)
@@ -1016,55 +1392,7 @@ HRESULT CAccelerometerDevice::ConfigureHardware()
         }
     }
 
-    FuncExit();
-
-    return hr;
-}
-
-/////////////////////////////////////////////////////////////////////////
-//
-//  CAccelerometerDevice::SetDataUpdateMode
-//
-//  This method is used to set the data update mode.
-//
-//  Parameters:
-//      Mode - new data update mode
-//
-//  Return Values:
-//      status
-//
-/////////////////////////////////////////////////////////////////////////
-HRESULT CAccelerometerDevice::SetDataUpdateMode(
-    _In_  DATA_UPDATE_MODE Mode
-    )
-{
-    FuncEntry();
-
-    HRESULT hr = (m_fInitialized == TRUE) ? S_OK : E_UNEXPECTED;
-
-    if (SUCCEEDED(hr))
-    {
-        switch (Mode)
-        {
-            case DataUpdateModeOff:
-                hr = SetDeviceStateStandby();
-                break;
-
-            case DataUpdateModePolling:
-                hr = SetDeviceStatePolling();
-                break;
-
-            case DataUpdateModeEventing:
-                hr = SetDeviceStateEventing();
-                break;
-
-            default:
-                hr = E_INVALIDARG;
-                break;
-        }
-    }
-
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -1098,7 +1426,7 @@ HRESULT CAccelerometerDevice::SetDeviceStateStandby()
     if (SUCCEEDED(hr))
     {
         // Synchronize access to device
-        CComCritSecLock<CComAutoCriticalSection> scopeLock(m_CriticalSection);
+        auto scopeLock = m_CriticalSection.Lock();
 
         // Disable interrupts
         pBuffer[0] = 0;
@@ -1170,7 +1498,7 @@ HRESULT CAccelerometerDevice::SetDeviceStateStandby()
         delete[] pBuffer;
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -1205,7 +1533,7 @@ HRESULT CAccelerometerDevice::SetDeviceStatePolling()
     if (SUCCEEDED(hr))
     {
         // Synchronize access to device
-        CComCritSecLock<CComAutoCriticalSection> scopeLock(m_CriticalSection);
+        auto scopeLock = m_CriticalSection.Lock();
 
         // Disable interrupts
         pBuffer[0] = 0;
@@ -1252,7 +1580,7 @@ HRESULT CAccelerometerDevice::SetDeviceStatePolling()
         delete[] pBuffer;
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -1287,7 +1615,7 @@ HRESULT CAccelerometerDevice::SetDeviceStateEventing()
     if (SUCCEEDED(hr))
     {
         // Synchronize access to device
-        CComCritSecLock<CComAutoCriticalSection> scopeLock(m_CriticalSection);
+        auto scopeLock = m_CriticalSection.Lock();
 
         pBuffer[0] = ADXL345_POWER_CTL_MEASURE;
         hr = WriteRegister(ADXL345_POWER_CTL, pBuffer, 1);
@@ -1333,7 +1661,7 @@ HRESULT CAccelerometerDevice::SetDeviceStateEventing()
         delete[] pBuffer;
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -1379,7 +1707,7 @@ HRESULT CAccelerometerDevice::SetReportInterval(
         if (SUCCEEDED(hr))
         {
             // Synchronize access to device
-            CComCritSecLock<CComAutoCriticalSection> scopeLock(m_CriticalSection);
+            auto scopeLock = m_CriticalSection.Lock();
 
             // Disable interrupts while data rate is modified
             pWriteBuffer[0] = 0;
@@ -1438,7 +1766,7 @@ HRESULT CAccelerometerDevice::SetReportInterval(
         }
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -1485,7 +1813,7 @@ HRESULT CAccelerometerDevice::SetChangeSensitivity(
 
         if (SUCCEEDED(hr))
         {
-            CComPtr<IPortableDeviceValues> spPerDataFieldValues;
+            ComPtr<IPortableDeviceValues> spPerDataFieldValues;
 
             spPerDataFieldValues =
                 static_cast<IPortableDeviceValues*>(pVar->punkVal);
@@ -1549,7 +1877,7 @@ HRESULT CAccelerometerDevice::SetChangeSensitivity(
         if (SUCCEEDED(hr))
         {
             // Synchronize access to device
-            CComCritSecLock<CComAutoCriticalSection> scopeLock(m_CriticalSection);
+            auto scopeLock = m_CriticalSection.Lock();
 
             // Disable interrupts while activity
             // threshold is modified
@@ -1609,7 +1937,7 @@ HRESULT CAccelerometerDevice::SetChangeSensitivity(
         }
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -1654,7 +1982,7 @@ HRESULT CAccelerometerDevice::RequestNewData(
         }
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -1674,8 +2002,8 @@ HRESULT CAccelerometerDevice::RequestNewData(
 //
 /////////////////////////////////////////////////////////////////////////
 HRESULT CAccelerometerDevice::GetTestProperty(
-        _In_  REFPROPERTYKEY key, 
-        _Out_ PROPVARIANT* pVar)
+    _In_  REFPROPERTYKEY key,
+    _Out_ PROPVARIANT* pVar)
 {
     FuncEntry();
 
@@ -1685,20 +2013,20 @@ HRESULT CAccelerometerDevice::GetTestProperty(
     {
         hr = E_INVALIDARG;
     }
-    
+
     if (SUCCEEDED(hr))
     {
-        if(IsEqualPropertyKey(key,
+        if (IsEqualPropertyKey(key,
             SENSOR_PROPERTY_TEST_REGISTER))
         {
             InitPropVariantFromUInt32(m_TestRegister, pVar);
         }
-        else if(IsEqualPropertyKey(key,
+        else if (IsEqualPropertyKey(key,
             SENSOR_PROPERTY_TEST_DATA_SIZE))
         {
             InitPropVariantFromUInt32(m_TestDataSize, pVar);
         }
-        else if(IsEqualPropertyKey(key,
+        else if (IsEqualPropertyKey(key,
             SENSOR_PROPERTY_TEST_DATA))
         {
             BYTE* pDataBuffer = (BYTE*)CoTaskMemAlloc(m_TestDataSize);
@@ -1711,7 +2039,7 @@ HRESULT CAccelerometerDevice::GetTestProperty(
             if (SUCCEEDED(hr))
             {
                 // Synchronize access to device
-                CComCritSecLock<CComAutoCriticalSection> scopeLock(m_CriticalSection);
+                auto scopeLock = m_CriticalSection.Lock();
 
                 hr = ReadRegister(
                     (BYTE)m_TestRegister,
@@ -1733,7 +2061,7 @@ HRESULT CAccelerometerDevice::GetTestProperty(
         }
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -1753,8 +2081,8 @@ HRESULT CAccelerometerDevice::GetTestProperty(
 //
 /////////////////////////////////////////////////////////////////////////
 HRESULT CAccelerometerDevice::SetTestProperty(
-        _In_  REFPROPERTYKEY key, 
-        _In_  PROPVARIANT* pVar)
+    _In_  REFPROPERTYKEY key,
+    _In_  PROPVARIANT* pVar)
 {
     FuncEntry();
 
@@ -1764,23 +2092,23 @@ HRESULT CAccelerometerDevice::SetTestProperty(
     {
         hr = E_INVALIDARG;
     }
-    
+
     if (SUCCEEDED(hr))
     {
         // Synchronize access to device
-        CComCritSecLock<CComAutoCriticalSection> scopeLock(m_CriticalSection);
+        auto scopeLock = m_CriticalSection.Lock();
 
-        if(IsEqualPropertyKey(key,
+        if (IsEqualPropertyKey(key,
             SENSOR_PROPERTY_TEST_REGISTER))
         {
             m_TestRegister = pVar->ulVal;
         }
-        else if(IsEqualPropertyKey(key,
+        else if (IsEqualPropertyKey(key,
             SENSOR_PROPERTY_TEST_DATA_SIZE))
         {
             m_TestDataSize = pVar->ulVal;
         }
-        else if(IsEqualPropertyKey(key,
+        else if (IsEqualPropertyKey(key,
             SENSOR_PROPERTY_TEST_DATA))
         {
             hr = WriteRegister(
@@ -1794,7 +2122,7 @@ HRESULT CAccelerometerDevice::SetTestProperty(
         }
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -1813,7 +2141,7 @@ HRESULT CAccelerometerDevice::SetTestProperty(
 //
 /////////////////////////////////////////////////////////////////////////
 HRESULT CAccelerometerDevice::AddDataFieldValue(
-    _In_  REFPROPERTYKEY         key, 
+    _In_  REFPROPERTYKEY         key,
     _In_  PROPVARIANT*           pVar,
     _Out_ IPortableDeviceValues* pValues
     )
@@ -1855,7 +2183,7 @@ HRESULT CAccelerometerDevice::AddDataFieldValue(
         hr = pValues->SetValue(key, pVar);
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -1889,7 +2217,7 @@ CAccelerometerDevice::OnInterruptIsr(
     UNREFERENCED_PARAMETER(MessageID);
     UNREFERENCED_PARAMETER(Reserved);
 
-    CComPtr<IWDFDevice> pWdfDevice = nullptr;
+    ComPtr<IWDFDevice> pWdfDevice = nullptr;
     CAccelerometerDevice* pAccelerometerDevice;
     BOOLEAN interruptRecognized = FALSE;
     HRESULT hr;
@@ -1916,8 +2244,7 @@ CAccelerometerDevice::OnInterruptIsr(
 
         {
             // Synchronize access to device
-            CComCritSecLock<CComAutoCriticalSection> scopeLock(
-                pAccelerometerDevice->m_CriticalSection);
+            auto scopeLock = pAccelerometerDevice->m_CriticalSection.Lock();
 
             // Read the interrupt source register to 
             // check for relevant interrupt. Doing so clears
@@ -1978,7 +2305,7 @@ CAccelerometerDevice::OnInterruptIsr(
         }
     }
 
-    FuncExit();
+    //FuncExit();
 
     return interruptRecognized;
 }
@@ -2008,11 +2335,9 @@ CAccelerometerDevice::OnInterruptWorkItem(
 
     UNREFERENCED_PARAMETER(AssociatedObject);
 
-    CComPtr<IWDFDevice> pWdfDevice = nullptr;
+    ComPtr<IWDFDevice> pWdfDevice = nullptr;
     CAccelerometerDevice* pAccelerometerDevice;
-    HRESULT hr;
-
-    hr = pInterrupt->RetrieveContext((void**)&pAccelerometerDevice);
+    HRESULT hr = pInterrupt->RetrieveContext((void**)&pAccelerometerDevice);
 
     if (FAILED(hr))
     {
@@ -2029,7 +2354,7 @@ CAccelerometerDevice::OnInterruptWorkItem(
 
     if (SUCCEEDED(hr) && (pAccelerometerDevice != nullptr))
     {
-        CComPtr<IPortableDeviceValues> spValues = nullptr;
+        ComPtr<IPortableDeviceValues> spValues = nullptr;
 
         // Create an IPortableDeviceValues to hold the data
         hr = CoCreateInstance(
@@ -2040,7 +2365,7 @@ CAccelerometerDevice::OnInterruptWorkItem(
                 
         if (SUCCEEDED(hr))
         {
-            hr = pAccelerometerDevice->RequestData(spValues);
+            hr = pAccelerometerDevice->RequestData(spValues.Get());
     
             if (FAILED(hr))
             {
@@ -2054,7 +2379,7 @@ CAccelerometerDevice::OnInterruptWorkItem(
 
         if (SUCCEEDED(hr))
         {
-            hr = pAccelerometerDevice->PostData(spValues);
+            hr = pAccelerometerDevice->DataAvailable(spValues.Get());
     
             if (FAILED(hr))
             {
@@ -2067,7 +2392,7 @@ CAccelerometerDevice::OnInterruptWorkItem(
         }
     }
 
-    FuncExit();
+    //FuncExit();
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -2095,7 +2420,7 @@ HRESULT CAccelerometerDevice::RequestData(
     if (SUCCEEDED(hr))
     {
         // Synchronize access to device
-        CComCritSecLock<CComAutoCriticalSection> scopeLock(m_CriticalSection);
+        auto scopeLock = m_CriticalSection.Lock();
 
         // Read the data registers asynchronously
         hr = ReadRegister(
@@ -2164,41 +2489,7 @@ HRESULT CAccelerometerDevice::RequestData(
         }
     }
 
-    FuncExit();
-
-    return hr;
-}
-
-/////////////////////////////////////////////////////////////////////////
-//
-//  CAccelerometerDevice::PostData
-//
-//  This method is used to post new data to the DDI.
-//  to the DDI.
-//
-//  Parameters:
-//      pValues - an IPortableDeviceValues collection to place the list of 
-//          new data field values
-//
-//  Return Values:
-//      status
-//
-/////////////////////////////////////////////////////////////////////////
-HRESULT CAccelerometerDevice::PostData(
-    _In_ IPortableDeviceValues * pValues
-    )
-{
-    FuncEntry();
-
-    HRESULT hr = m_fInitialized ? S_OK : E_UNEXPECTED;
-
-    // Post the 
-    if (SUCCEEDED(hr))
-    {
-        m_pSensorDeviceCallback->OnNewData(pValues);
-    }
-
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -2245,7 +2536,7 @@ HRESULT CAccelerometerDevice::ReadRegister(
             reg);
 
         // Execute the write-read sequence
-        hr = m_spRequest->CreateAndSendWriteReadSequence(
+        hr = m_pSpbRequest->CreateAndSendWriteReadSequence(
             &reg,
             1,
             pDataBuffer,
@@ -2262,7 +2553,7 @@ HRESULT CAccelerometerDevice::ReadRegister(
             hr);
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }
@@ -2325,7 +2616,7 @@ HRESULT CAccelerometerDevice::WriteRegister(
                 reg);
             
             // Execute the write
-            hr = m_spRequest->CreateAndSendWrite(
+            hr = m_pSpbRequest->CreateAndSendWrite(
                 pBuffer,
                 bufferLength);
         }
@@ -2347,7 +2638,7 @@ HRESULT CAccelerometerDevice::WriteRegister(
             hr);
     }
 
-    FuncExit();
+    //FuncExit();
 
     return hr;
 }

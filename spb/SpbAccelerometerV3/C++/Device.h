@@ -22,31 +22,16 @@ Abstract:
 #define _DEVICE_H_
 
 #pragma once
-#pragma warning(disable : 4995)
 
 class CSensorDdi;
 
-class ATL_NO_VTABLE CMyDevice :
-    public CComObjectRootEx<CComMultiThreadModel>,
-    public IPnpCallback,
-    public IPnpCallbackHardware2,
-    public IFileCallbackCleanup
+class CMyDevice : public Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,IPnpCallback,IPnpCallbackHardware2,IFileCallbackCleanup>
 {
 public:
     ~CMyDevice();
-
-    DECLARE_NOT_AGGREGATABLE(CMyDevice)
-
-    BEGIN_COM_MAP(CMyDevice)
-        COM_INTERFACE_ENTRY(IPnpCallback)
-        COM_INTERFACE_ENTRY(IPnpCallbackHardware2)
-        COM_INTERFACE_ENTRY(IFileCallbackCleanup)
-    END_COM_MAP()
-
-protected:
     CMyDevice();
 
-    HRESULT Initialize(
+    HRESULT RuntimeClassInitialize(
         _In_  IWDFDriver*              pDriver,
         _In_  IWDFDeviceInitialize*    pDeviceInit);
 
@@ -80,9 +65,9 @@ public:
     
     // The factory method used to create an instance of this device
     static HRESULT CreateInstance(
-        _In_  IWDFDriver*              pDriver,
-        _In_  IWDFDeviceInitialize*    pDeviceInit,
-        _Out_ CComObject<CMyDevice>**  ppMyDevice);
+        _In_                           IWDFDriver*              pDriver,
+        _In_                           IWDFDeviceInitialize*    pDeviceInit,
+        _COM_Outptr_result_maybenull_  CMyDevice**  ppMyDevice);
 
     HRESULT Configure();
 
@@ -96,11 +81,12 @@ public:
 
 private:
     // Interface pointers
-    CComPtr<IWDFDevice>             m_spWdfDevice;
-    CComPtr<ISensorClassExtension>  m_spClassExtension;
+    Microsoft::WRL::ComPtr<IWDFDevice>                            m_spWdfDevice;
+	#pragma warning(disable : 4995)
+    Microsoft::WRL::ComPtr<ISensorClassExtension>                 m_spClassExtension;
 
-    // Class extension pointer
-    CComObject<CSensorDdi>*         m_pSensorDdi;
+    // Class extension pointer					                  
+    Microsoft::WRL::ComPtr<CSensorDdi>                            m_pSensorDdi;
 };
 
 #endif // _DEVICE_H_
